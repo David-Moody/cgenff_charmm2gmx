@@ -634,8 +634,7 @@ class atomgroup:
                 self.ndihedrals,
             )
         self.autogen_angl_dihe()
-        # Reset here for no reason
-        # self.coord = np.zeros((self.natoms, 3), dtype=float)
+        self.coord = np.zeros((self.natoms, 3), dtype=float)
 
     def autogen_angl_dihe(self):
         self.angles = []
@@ -1029,74 +1028,77 @@ class atomgroup:
         raise ValueError("ERROR: Unable to find vsite")
 
 
-if len(sys.argv) != 5:
-    print("Usage: RESNAME drug.mol2 drug.str charmm36.ff")
-    exit()
+def main():
+    if len(sys.argv) != 5:
+        print("Usage: RESNAME drug.mol2 drug.str charmm36.ff")
+        exit()
 
-mol_name = sys.argv[1]
-mol2_name = sys.argv[2]
-rtp_name = sys.argv[3]
-ffdir = sys.argv[4]
-atomtypes_filename = ffdir + "/atomtypes.atp"
+    mol_name = sys.argv[1]
+    mol2_name = sys.argv[2]
+    rtp_name = sys.argv[3]
+    ffdir = sys.argv[4]
+    atomtypes_filename = ffdir + "/atomtypes.atp"
 
-print("NOTE 1: Code tested with Python 3.12 Your version:", sys.version)
-print("")
-print("NOTE 2: Code tested with NetworkX 3.4.2. Your version:", nx.__version__)
-print("")
-print(
-    "NOTE 3: Please be sure to use the same version of CGenFF in your simulations that was used during parameter generation:"
-)
-check_versions(rtp_name, ffdir + "/forcefield.doc")
-print("")
-print(
-    "NOTE 4: To avoid duplicated parameters, do NOT select the 'Include parameters that are already in CGenFF' option when uploading a molecule into CGenFF."
-)
+    print("NOTE 1: Code tested with Python 3.12 Your version:", sys.version)
+    print("")
+    print("NOTE 2: Code tested with NetworkX 3.4.2. Your version:", nx.__version__)
+    print("")
+    print(
+        "NOTE 3: Please be sure to use the same version of CGenFF in your simulations that was used during parameter generation:"
+    )
+    check_versions(rtp_name, ffdir + "/forcefield.doc")
+    print("")
+    print(
+        "NOTE 4: To avoid duplicated parameters, do NOT select the 'Include parameters that are already in CGenFF' option when uploading a molecule into CGenFF."
+    )
+
+    # for output
+    itpfile = mol_name.lower() + ".itp"
+    prmfile = mol_name.lower() + ".prm"
+    initpdbfile = mol_name.lower() + "_ini.pdb"
+    topfile = mol_name.lower() + ".top"
+
+    atomtypes = read_gmx_atomtypes(atomtypes_filename)
+
+    angl_params: list[
+        tuple[str, str, str, float]
+    ] = []  # needed for detecting triple bonds
+    filelist = get_filelist_from_gmx_forcefielditp(ffdir, "forcefield.itp")
+    for filename in filelist:
+        anglpars = read_gmx_anglpars(filename)
+        angl_params = angl_params + anglpars
+
+    m = atomgroup()
+    rtplines = get_charmm_rtp_lines(rtp_name, mol_name)
+    m.read_charmm_rtp(rtplines, atomtypes)
+
+    m.read_mol2_coor_only(mol2_name)
+    m.write_pdb(initpdbfile)
+
+    prmlines = get_charmm_prm_lines(rtp_name)
+    params = parse_charmm_parameters(prmlines)
+    write_gmx_bon(params, "", prmfile)
+    anglpars = read_gmx_anglpars(prmfile)
+    angl_params = angl_params + anglpars  # append the new angl params
+
+    m.write_gmx_itp(itpfile, angl_params)
+    write_gmx_mol_top(topfile, ffdir, prmfile, itpfile, mol_name)
+
+    print("============ DONE ============")
+    print("Conversion complete.")
+    print("The molecule topology has been written to %s" % (itpfile))
+    print(
+        "Additional parameters needed by the molecule are written to %s, which needs to be included in the system .top"
+        % (prmfile)
+    )
+    print(
+        "\nPLEASE NOTE: If your topology has lone pairs, you must use GROMACS version 2020 or newer to use 2fd construction"
+    )
+    print(
+        "Older GROMACS versions WILL NOT WORK as they do not support 2fd virtual site construction\n"
+    )
+    print("============ DONE ============")
 
 
-# for output
-itpfile = mol_name.lower() + ".itp"
-prmfile = mol_name.lower() + ".prm"
-initpdbfile = mol_name.lower() + "_ini.pdb"
-topfile = mol_name.lower() + ".top"
-
-atomtypes = read_gmx_atomtypes(atomtypes_filename)
-
-angl_params: list[tuple[str, str, str, float]] = []  # needed for detecting triple bonds
-filelist = get_filelist_from_gmx_forcefielditp(ffdir, "forcefield.itp")
-for filename in filelist:
-    anglpars = read_gmx_anglpars(filename)
-    angl_params = angl_params + anglpars
-
-
-m = atomgroup()
-rtplines = get_charmm_rtp_lines(rtp_name, mol_name)
-m.read_charmm_rtp(rtplines, atomtypes)
-
-
-m.read_mol2_coor_only(mol2_name)
-m.write_pdb(initpdbfile)
-
-prmlines = get_charmm_prm_lines(rtp_name)
-params = parse_charmm_parameters(prmlines)
-write_gmx_bon(params, "", prmfile)
-anglpars = read_gmx_anglpars(prmfile)
-angl_params = angl_params + anglpars  # append the new angl params
-
-
-m.write_gmx_itp(itpfile, angl_params)
-write_gmx_mol_top(topfile, ffdir, prmfile, itpfile, mol_name)
-
-print("============ DONE ============")
-print("Conversion complete.")
-print("The molecule topology has been written to %s" % (itpfile))
-print(
-    "Additional parameters needed by the molecule are written to %s, which needs to be included in the system .top"
-    % (prmfile)
-)
-print(
-    "\nPLEASE NOTE: If your topology has lone pairs, you must use GROMACS version 2020 or newer to use 2fd construction"
-)
-print(
-    "Older GROMACS versions WILL NOT WORK as they do not support 2fd virtual site construction\n"
-)
-print("============ DONE ============")
+if __name__ == "__main__":
+    main()

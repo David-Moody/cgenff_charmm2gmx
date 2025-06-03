@@ -41,3 +41,13 @@ Example:
 OR
 
     uv run cgenff_charmm2gmx.py JZ4 jz4.mol2 jz4.str charmm36_ljpme-jul2022.ff
+
+### Run testing
+
+Pytest will run the script and compare the results to the output from the old Python 3.7 output.
+
+    pytest
+
+OR to get coverage info
+
+    pytest --cov --cov-report term:skip-covered --cov-report html
