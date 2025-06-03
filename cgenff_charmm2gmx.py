@@ -486,7 +486,7 @@ class atomgroup:
         self.ndihedrals = 0
         self.impropers: list[list[int]] = []
         self.nimpropers = 0
-        # self.coord=np.zeros((self.natoms,3),dtype=float)
+        self.coord = np.zeros((self.natoms, 3), dtype=float)
 
     def read_charmm_rtp(self, rtplines: list[str], atomtypes: list[list[str]]):
         """
@@ -538,6 +538,8 @@ class atomgroup:
 
                 if line.startswith("LONE"):
                     entry = line.lstrip().split()
+
+                    # TODO investigate whether this is a bug. A LoneInfo object is stored into a dict that is otherwise storing AtomInfo
                     atm[self.nvsites] = {
                         "vsite": entry[2],
                         "at1": entry[3],
@@ -632,7 +634,8 @@ class atomgroup:
                 self.ndihedrals,
             )
         self.autogen_angl_dihe()
-        self.coord = np.zeros((self.natoms, 3), dtype=float)
+        # Reset here for no reason
+        # self.coord = np.zeros((self.natoms, 3), dtype=float)
 
     def autogen_angl_dihe(self):
         self.angles = []
@@ -740,11 +743,11 @@ class atomgroup:
                 f.write("%5d %5d	 1\n" % (i + 1, j + 1))
                 # Add LP pairs, same as parent atom
                 # Use is_lp_host_atom() to test each index, then find associated vsite
-                if is_lp_host_atom(self, self.G.nodes[i]["name"]):
-                    k = find_vsite(self, i)
+                if self.is_lp_host_atom(self.G.nodes[i]["name"]):
+                    k = self.find_vsite(i)
                     f.write("%5d %5d	 1\n" % (k + 1, j + 1))
-                if is_lp_host_atom(self, self.G.nodes[j]["name"]):
-                    k = find_vsite(self, j)
+                if self.is_lp_host_atom(self.G.nodes[j]["name"]):
+                    k = self.find_vsite(j)
                     f.write("%5d %5d	 1\n" % (k + 1, i + 1))
             f.write("\n")
             f.write("[ angles ]\n")
@@ -831,37 +834,37 @@ class atomgroup:
                 exclusions for the host (bonds, angles, pairs) 
                 first, exclude any LP from its host """
                 for i in range(0, self.natoms):
-                    if is_lp_host_atom(self, self.G.nodes[i]["name"]):
+                    if self.is_lp_host_atom(self.G.nodes[i]["name"]):
                         # find the LP attached to this host, not necessarily consecutive
                         # in the topology
-                        j = find_vsite(self, i)
+                        j = self.find_vsite(i)
                         f.write("%5d %5d\n" % (i + 1, j + 1))
                 # first neighbors: 1-2
                 for i, j in self.G.edges():
-                    if is_lp_host_atom(self, self.G.nodes[i]["name"]):
-                        k = find_vsite(self, i)
+                    if self.is_lp_host_atom(self.G.nodes[i]["name"]):
+                        k = self.find_vsite(i)
                         f.write("%5d %5d\n" % (k + 1, j + 1))
-                    if is_lp_host_atom(self, self.G.nodes[j]["name"]):
-                        k = find_vsite(self, j)
+                    if self.is_lp_host_atom(self.G.nodes[j]["name"]):
+                        k = self.find_vsite(j)
                         f.write("%5d %5d\n" % (k + 1, i + 1))
                 # second neighbors: 1-3
                 for var in self.angles:
                     # only need to consider ends of the angle, not middle atom
                     ai = var[0]
                     ak = var[2]
-                    if is_lp_host_atom(self, self.G.nodes[ai]["name"]):
-                        l_val = find_vsite(self, ai)
+                    if self.is_lp_host_atom(self.G.nodes[ai]["name"]):
+                        l_val = self.find_vsite(ai)
                         f.write("%5d %5d\n" % (l_val + 1, ak + 1))
-                    if is_lp_host_atom(self, self.G.nodes[ak]["name"]):
-                        l_val = find_vsite(self, ak)
+                    if self.is_lp_host_atom(self.G.nodes[ak]["name"]):
+                        l_val = self.find_vsite(ak)
                         f.write("%5d %5d\n" % (l_val + 1, ai + 1))
                 # third neighbors: 1-4
                 for i, j in pairs14.edges():
-                    if is_lp_host_atom(self, self.G.nodes[i]["name"]):
-                        k = find_vsite(self, i)
+                    if self.is_lp_host_atom(self.G.nodes[i]["name"]):
+                        k = self.find_vsite(i)
                         f.write("%5d %5d\n" % (k + 1, j + 1))
-                    if is_lp_host_atom(self, self.G.nodes[j]["name"]):
-                        k = find_vsite(self, j)
+                    if self.is_lp_host_atom(self.G.nodes[j]["name"]):
+                        k = self.find_vsite(j)
                         f.write("%5d %5d\n" % (k + 1, i + 1))
                 f.write("\n")
 
@@ -921,8 +924,8 @@ class atomgroup:
                         self.coord[atomi][2] = float(entry[4])
                         # if we have an atom that is the host for a LP, insert
                         # the LP into the list
-                        if is_lp_host_atom(self, self.G.nodes[atomi]["name"]):
-                            atomj = find_vsite(self, atomi)
+                        if self.is_lp_host_atom(self.G.nodes[atomi]["name"]):
+                            atomj = self.find_vsite(atomi)
                             # insert dummy entry for LP
                             self.G.nodes[atomj]["x"] = float(9999.99)
                             self.G.nodes[atomj]["y"] = float(9999.99)
@@ -980,13 +983,12 @@ class atomgroup:
                         )
 
                     # at1, at2, and dist only exist in vsite structure!
-                    # TODO: Verify these are actually floats
-                    x1: float = self.coord[at1][0]
-                    y1: float = self.coord[at1][1]
-                    z1: float = self.coord[at1][2]
-                    x2: float = self.coord[at2][0]
-                    y2: float = self.coord[at2][1]
-                    z2: float = self.coord[at2][2]
+                    x1 = self.coord[at1][0]
+                    y1 = self.coord[at1][1]
+                    z1 = self.coord[at1][2]
+                    x2 = self.coord[at2][0]
+                    y2 = self.coord[at2][1]
+                    z2 = self.coord[at2][2]
 
                     xlp, ylp, zlp = construct_lp(x1, y1, z1, x2, y2, z2, dist)
                     self.coord[atomi][0] = xlp
@@ -1009,30 +1011,22 @@ class atomgroup:
                 )
             f.write("END\n")
 
+    def is_lp_host_atom(self, name: str) -> bool:
+        for ai in range(0, self.nvsites):
+            if name == self.G.nodes[ai]["at1"]:
+                return True
+        return False
 
-# =================================================================================================================
+    def find_vsite(self, atnum: int) -> int:
+        for i in range(0, self.nvsites):
+            # if we find the LP host, find the LP atom index
+            if self.G.nodes[i]["at1"] == self.G.nodes[atnum]["name"]:
+                for j in range(0, self.natoms):
+                    if self.G.nodes[i]["vsite"] == self.G.nodes[j]["name"]:
+                        return j
 
-
-def is_lp_host_atom(self: atomgroup, name: str) -> bool:
-    # TODO: FIX ME
-    for ai in range(0, self.nvsites):
-        if name == self.G.nodes[ai]["at1"]:
-            return True
-    return False
-
-
-def find_vsite(self: atomgroup, atnum: int) -> int:
-    # TODO: FIX ME
-
-    for i in range(0, self.nvsites):
-        # if we find the LP host, find the LP atom index
-        if self.G.nodes[i]["at1"] == self.G.nodes[atnum]["name"]:
-            for j in range(0, self.natoms):
-                if self.G.nodes[i]["vsite"] == self.G.nodes[j]["name"]:
-                    return j
-
-    # Should never get here
-    raise ValueError("ERROR: Unable to find vsite")
+        # Should never get here
+        raise ValueError("ERROR: Unable to find vsite")
 
 
 if len(sys.argv) != 5:
