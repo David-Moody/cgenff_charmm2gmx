@@ -2,9 +2,9 @@
 
 Python scripts to convert CGenFF stream files to GROMACS format
 
-# Compatibility
+## Compatibility
 
-This script was updated for Python 3.13+.
+This script was updated for Python 3.13+. It should also work for 3.11 and onwards. A newer Python version is required as the script has been updated to include complete type hinting.
 
 For older versions of Python see the legacy_scripts folder.
 
@@ -13,13 +13,31 @@ For older versions of Python see the legacy_scripts folder.
 The following components are necessary:
 
 * NumPy
-* NetworkX (version 1.11 or 2.3)
+* NetworkX
 
-## Compatible Python versions
+This can be easily setup using pip (we recommend using a virtual environment) or with [uv](https://docs.astral.sh/uv/).
 
-The "py2" script is compatible with any Python version in the 2.x series. The
-"py3" scripts require a version no newer than 3.7. We have explicitly tested
-these scripts with 3.5.x and 3.7.x versions. Newer versions of Python, like
-3.9 and 3.10, will trigger errors related to changes in syntax. We are in the
-process of modernizing these scripts, but for now, please do not attempt to
-use any Python version newer than 3.7 as a major version.
+#### pip
+
+    pip install -r requirements.txt
+
+#### uv
+
+    uv sync # To use the exact versions this script was tested with
+
+OR
+
+    uv venv # To create a virtual environment
+    uv pip install -r pyproject.toml # Use the latest versions of the dependencies
+
+### Running the script
+
+Usage: RESNAME drug.mol2 drug.str charmm36.ff
+
+Example:
+
+    python cgenff_charmm2gmx.py JZ4 jz4.mol2 jz4.str charmm36_ljpme-jul2022.ff
+
+OR
+
+    uv run cgenff_charmm2gmx.py JZ4 jz4.mol2 jz4.str charmm36_ljpme-jul2022.ff
