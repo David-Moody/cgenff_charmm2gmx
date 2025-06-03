@@ -908,7 +908,7 @@ class atomgroup:
             for var in self.dihedrals:
                 if (
                     # len(nx.dijkstra_path(self.G, var[0], var[3])) == 4
-                    nx.dijkstra_path_length(self.G, var[0], var[3]) == 4  # type: ignore : Networkx is missing some type hints
+                    nx.dijkstra_path_length(self.G, var[0], var[3]) == 3  # type: ignore : Networkx is missing some type hints
                 ):  # this is to remove 1-2 and 1-3 included in dihedrals of rings
                     pairs14.add_edge(var[0], var[3])
             for i, j in pairs14.edges():
