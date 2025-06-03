@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 # USAGE: python cgenff_charmm2gmx.py DRUG drug.mol2 drug.str charmm36.ff
-# Tested with Python 3.5.2. Requires numpy and networkx
-# The networkx version MUST be in the 1.x series. Tested version: 1.11
 
 # Copyright (C) 2014 E. Prabhu Raman prabhu@outerbanks.umaryland.edu
 #
@@ -13,6 +11,9 @@
 # Included notes on bonds, angles, and dihedrals
 #
 # For help/questions/bug reports, please contact Justin Lemkul jalemkul@vt.edu
+#
+# Modified 03/06/2025 by David Moody to work with Python 3.13 +
+# This included various code improvements, including refactoring, type hints and better function usage.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -53,7 +54,6 @@ import networkx as nx
 import numpy as np
 
 
-# =================================================================================================================
 class AtomInfo(TypedDict):
     type: str
     resname: str
@@ -116,23 +116,19 @@ def check_versions(str_filename: str, ffdoc_filename: str):
 
     # in case something has gone horribly wrong
     if (strver == 0) or (ffver == 0):
-        print("\nERROR: Could not detect CGenFF version. Exiting.\n")
         raise ValueError("ERROR: Could not detect CGenFF version.")
 
 
-# -----------------------------------------------------------------------
-## jal
 def is_lp(s: str) -> bool:
     if (s[0] == "L") and (s[1] == "P"):
         return True
     return False
 
 
-# -----------------------------------------------------------------------
-## jal - only for COLINEAR lone pairs, since CGenFF only needs this now
 def construct_lp(
     x1: float, y1: float, z1: float, x2: float, y2: float, z2: float, dist: float
 ) -> tuple[float, float, float]:
+    # only for COLINEAR lone pairs, since CGenFF only needs this now
     dx = x1 - x2
     dy = y1 - y2
     dz = z1 - z2
@@ -146,7 +142,6 @@ def construct_lp(
     return xlp, ylp, zlp
 
 
-# -----------------------------------------------------------------------
 def read_gmx_atomtypes(filename: str) -> list[list[str]]:
     atomtypes: list[list[str]] = []
     with open(filename, "r") as f:
@@ -162,7 +157,6 @@ def read_gmx_atomtypes(filename: str) -> list[list[str]]:
     return atomtypes
 
 
-# -----------------------------------------------------------------------
 def get_filelist_from_gmx_forcefielditp(ffdir: str, ffparentfile: str) -> list[str]:
     filelist: list[str] = []
     with open(ffdir + "/" + ffparentfile, "r") as f:
@@ -174,7 +168,6 @@ def get_filelist_from_gmx_forcefielditp(ffdir: str, ffparentfile: str) -> list[s
     return filelist
 
 
-# -----------------------------------------------------------------------
 def read_gmx_anglpars(filename: str) -> list[tuple[str, str, str, float]]:
     angllines: list[str] = []
     with open(filename, "r") as f:
@@ -192,23 +185,17 @@ def read_gmx_anglpars(filename: str) -> list[tuple[str, str, str, float]]:
                 section = "ANGL"
 
     anglpars: list[tuple[str, str, str, float]] = []
-    # anglpar = {}
     for line in angllines:
         entry = line.lstrip().split()
         ai, aj, ak, eq = entry[0], entry[1], entry[2], float(entry[4])
-        # Should be a tuple here and not a list
-        # anglpars.append([ai, aj, ak, eq])
         anglpars.append((ai, aj, ak, eq))
 
     return anglpars
 
 
-# -----------------------------------------------------------------------
 def get_charmm_rtp_lines(filename: str, molname: str) -> list[str]:
-    # foundmol = 0
     store = 0
     rtplines: list[str] = []
-    # section = "NONE"
 
     with open(filename, "r") as f:
         for line in f:
@@ -230,153 +217,21 @@ def get_charmm_rtp_lines(filename: str, molname: str) -> list[str]:
     return rtplines
 
 
-# -----------------------------------------------------------------------
 def get_charmm_prm_lines(filename: str) -> list[str]:
-    # foundmol = 0
     store = 0
     prmlines: list[str] = []
     with open(filename, "r") as f:
-        # section = "NONE"
         for line in f.readlines():
             if line.startswith("END"):
-                # section = "NONE"
                 store = 0
 
             if store:
                 prmlines.append(line)
 
             if line.startswith("read para"):
-                # section = "PRM"
                 store = 1
 
     return prmlines
-
-
-# -----------------------------------------------------------------------
-# def parse_charmm_topology(rtplines):
-#     topology = {}
-#     noblanks = [x for x in rtplines if len(x.strip()) > 0]
-#     nocomments = [x for x in noblanks if x.strip()[0] not in ["*", "!"]]
-#     # section = "BONDS"  # default
-#     state = "free"
-#     for line in nocomments:
-#         if state == "free":
-#             if line.find("MASS") == 0:
-#                 if "ATOMS" not in list(topology.keys()):
-#                     topology["ATOMS"] = {}
-#                 s = line.split()
-#                 idx, name, mass, type = int(s[1]), s[2], float(s[3]), s[4]
-#                 if line.find("!"):
-#                     comment = line[line.find("!") + 1 :].strip()
-#                 else:
-#                     comment = ""
-#                 topology["ATOMS"][name] = [idx, mass, type, comment]
-#             elif line.find("DECL") == 0:
-#                 if "DECL" not in list(topology.keys()):
-#                     topology["DECL"] = []
-#                 decl = line.split()[1]
-#                 topology["DECL"].append(decl)
-#             elif line.find("DEFA") == 0:
-#                 topology["DEFA"] = line[4:]
-#             elif line.find("AUTO") == 0:
-#                 topology["AUTO"] = line[4:]
-#             elif line.find("RESI") == 0:
-#                 if "RESI" not in list(topology.keys()):
-#                     topology["RESI"] = {}
-#                 state = "resi"
-#                 s = line.split()
-#                 resname, charge = s[1], float(s[2])
-#                 topology["RESI"][resname] = {}
-#                 topology["RESI"][resname]["charge"] = charge
-#                 topology["RESI"][resname]["cmaps"] = []
-#                 topology["RESI"][resname]["vsites"] = []
-#                 topology["RESI"][resname]["bonds"] = []
-#                 topology["RESI"][resname]["impropers"] = []
-#                 topology["RESI"][resname]["double_bonds"] = []
-#                 group = -1
-#             elif line.find("PRES") == 0:
-#                 state = "pres"
-#                 s = line.split()
-#                 # presname, charge = s[1], float(s[2])
-#                 _, charge = s[1], float(s[2])
-#             elif line.find("END") == 0:
-#                 return topology
-#         elif state == "resi":
-#             if line.find("RESI") == 0:
-#                 state = "resi"
-#                 s = line.split()
-#                 resname, charge = s[1], float(s[2])
-#                 topology["RESI"][resname] = {}
-#                 topology["RESI"][resname]["charge"] = charge
-#                 topology["RESI"][resname]["cmaps"] = []
-#                 topology["RESI"][resname]["vsites"] = []
-#                 topology["RESI"][resname]["bonds"] = []
-#                 topology["RESI"][resname]["impropers"] = []
-#                 topology["RESI"][resname]["double_bonds"] = []
-#                 # topology["RESI"][resname]["groups"] = []
-#                 group = -1
-
-#             elif line.find("GROU") == 0:
-#                 group += 1
-#                 topology["RESI"][resname][group] = []
-#             elif line.find("ATOM") == 0:
-#                 if line.find("!"):
-#                     line = line[: line.find("!")]
-#                 s = line.split()
-#                 name, type, charge = s[1], s[2], float(s[3])
-#                 topology["RESI"][resname][group].append((name, type, charge))
-#             ## jal - adding lone pair support
-#             elif line.find("LONE") == 0:
-#                 if line.find("!"):
-#                     line = line[: line.find("!")]
-#                 s = line.split()
-#                 name, at1, at2, dist = s[2], s[3], s[4], (float(s[6]) * 0.1)
-#                 topology["RESI"][resname]["vsites"].append((name, at1, at2, dist))
-#             elif line.find("BOND") == 0:
-#                 if line.find("!"):
-#                     line = line[: line.find("!")]
-#                 s = line.split()
-#                 nbond = (len(s) - 1) // 2  # TODO: Verify // is same as / here
-#                 for i in range(nbond):
-#                     p, q = s[1 + 2 * i], s[2 + 2 * i]
-#                     ## jal - ignore "bonds" to lone pairs
-#                     if not is_lp(p) and not is_lp(q):
-#                         topology["RESI"][resname]["bonds"].append((p, q))
-#             elif line.find("DOUB") == 0:
-#                 if line.find("!"):
-#                     line = line[: line.find("!")]
-#                 s = line.split()
-#                 ndouble = (len(s) - 1) // 2  # TODO: Verify // is same as / here
-#                 for i in range(ndouble):
-#                     p, q = s[1 + 2 * i], s[2 + 2 * i]
-#                     topology["RESI"][resname]["double_bonds"].append((p, q))
-#             elif line.find("IMPR") == 0:
-#                 if line.find("!"):
-#                     line = line[: line.find("!")]
-#                 s = line.split()
-#                 nimproper = (len(s) - 1) // 4  # TODO: Verify // is same as / here
-#                 for i in range(nimproper):
-#                     impr = s[1 + 4 * i], s[2 + 4 * i], s[3 + 4 * i], s[4 + 4 * i]
-#                     topology["RESI"][resname]["impropers"].append(impr)
-#             elif line.find("CMAP") == 0:
-#                 if line.find("!"):
-#                     line = line[: line.find("!")]
-#                 s = line.split()
-#                 # nimproper = (len(s)-1)/4
-#                 # for i in range(nimproper):
-#                 cmap = s[1:9]
-#                 topology["RESI"][resname]["cmaps"].append(cmap)
-#             elif line.find("DONOR") == 0:
-#                 continue  # ignore for now
-#             elif line.find("ACCEPTOR") == 0:
-#                 continue
-#             elif line.find("IC") == 0:
-#                 continue
-
-#     return topology
-
-
-# -----------------------------------------------------------------------
 
 
 def parse_charmm_parameters(prmlines: list[str]):
@@ -397,7 +252,6 @@ def parse_charmm_parameters(prmlines: list[str]):
     nocomments = [x for x in noblanks if x.strip()[0] not in ["*", "!"]]
     section = "ATOM"  # default
     for line in nocomments:
-        # print line
         key = line.split()[0]
 
         n = None
@@ -407,13 +261,13 @@ def parse_charmm_parameters(prmlines: list[str]):
             section = key[0:4]
             continue
 
-            # print line
         if section == "BOND":
             if line.find("!"):
                 line = line[: line.find("!")]
             s = line.split()
             ai, aj, kij, rij = s[0], s[1], float(s[2]), float(s[3])
             parameters["BOND"].append((ai, aj, kij, rij))
+
         elif section == "ANGL":
             if line.find("!"):
                 line = line[: line.find("!")]
@@ -425,6 +279,7 @@ def parse_charmm_parameters(prmlines: list[str]):
                     "ERROR: Incorrect number of values found in ANGL section"
                 )
             parameters["ANGL"].append((ai, aj, ak) + other)
+
         elif section == "DIHE":
             if line.find("!"):
                 line = line[: line.find("!")]
@@ -439,12 +294,14 @@ def parse_charmm_parameters(prmlines: list[str]):
                 float(s[6]),
             )
             parameters["DIHE"].append((ai, aj, ak, al, k, n, d))
+
         elif section == "IMPR":
             if line.find("!"):
                 line = line[: line.find("!")]
             s = line.split()
             ai, aj, ak, al, k, d = s[0], s[1], s[2], s[3], float(s[4]), float(s[6])
             parameters["IMPR"].append((ai, aj, ak, al, k, d))
+
         elif section == "CMAP":
             if line.find("!"):
                 line = line[: line.find("!")]
@@ -466,6 +323,7 @@ def parse_charmm_parameters(prmlines: list[str]):
                 if len(cmaplist) == n**2:
                     parameters["CMAP"].append([cmapkey, cmaplist])
                     cmapkey = None
+
         elif section == "NONB":
             if (
                 line.find("cutnb") >= 0
@@ -476,10 +334,8 @@ def parse_charmm_parameters(prmlines: list[str]):
                 continue
             bang = line.find("!")
             if bang > 0:
-                # comment = line[bang + 1 :]
                 prm = line[:bang].split()
             else:
-                # comment = ""
                 prm = line.split()
             atname = prm[0]
             epsilon = -float(prm[2])
@@ -494,7 +350,6 @@ def parse_charmm_parameters(prmlines: list[str]):
     return parameters
 
 
-# -----------------------------------------------------------------------
 def write_gmx_bon(parameters: ParameterDict, header_comments: str, filename: str):
     kcal2kJ = 4.18400
 
@@ -549,7 +404,7 @@ def write_gmx_bon(parameters: ParameterDict, header_comments: str, filename: str
             ";%7s %8s %8s %8s %5s %12s %12s %5s\n"
             % ("i", "j", "k", "l", "func", "phi0", "kphi", "mult")
         )
-        # parameters["DIHEDRALS"].sort(demote_wildcards)
+
         if "DIHE" in parameters:
             for p in parameters["DIHE"]:
                 ai, aj, ak, al, k, n, d = p
@@ -567,7 +422,6 @@ def write_gmx_bon(parameters: ParameterDict, header_comments: str, filename: str
             % ("i", "j", "k", "l", "func", "phi0", "kphi")
         )
         if "IMPR" in parameters:
-            # parameters["IMPROPERS"].sort(demote_wildcards)
             for p in parameters["IMPR"]:
                 ai, aj, ak, al, k, d = p
                 k *= kimpr_conversion
@@ -576,7 +430,6 @@ def write_gmx_bon(parameters: ParameterDict, header_comments: str, filename: str
                 )
 
 
-# -----------------------------------------------------------------------
 def write_gmx_mol_top(
     filename: str,
     ffdir: str,
@@ -613,7 +466,6 @@ def write_gmx_mol_top(
         outp.write("\n")
 
 
-# =================================================================================================================
 class atomgroup:
     """
     A class that contains the data structures and functions to store and process
@@ -636,7 +488,6 @@ class atomgroup:
         self.nimpropers = 0
         # self.coord=np.zeros((self.natoms,3),dtype=float)
 
-    # -----------------------------------------------------------------------
     def read_charmm_rtp(self, rtplines: list[str], atomtypes: list[list[str]]):
         """
         Reads CHARMM rtp
@@ -647,21 +498,6 @@ class atomgroup:
         USAGE: m = atomgroup() ; m.read_charmm_rtp(rtplines,atomtypes)
 
         """
-
-        # We have no need to reinitalise here
-        # initialize everything
-
-        # self.G = nx.Graph()
-        # self.name = ""
-        # self.natoms = 0
-        # self.nvsites = 0
-        # self.nbonds = 0
-        # self.angles = []
-        # self.nangles = 0
-        # self.dihedrals = []
-        # self.ndihedrals = 0
-        # self.impropers = []
-        # self.nimpropers = 0
 
         atm: dict[int, AtomInfo] = {}
 
@@ -694,15 +530,12 @@ class atomgroup:
                             atm[self.natoms]["mass"] = float(typei[1])
                             break
 
-                    # self.G.add_node(self.natoms, atm[self.natoms])
-                    # @@@@@@@@@@@@@@ Conrard modification @@@@@@@@@@@
                     att = self.natoms  # attribute
                     nodd = {att: atm[self.natoms]}  # node to add
                     self.G.add_node(att)  # instanciate the attribute
                     nx.set_node_attributes(self.G, nodd)
                     self.natoms = self.natoms + 1
 
-                ## jal - adding lone pair support
                 if line.startswith("LONE"):
                     entry = line.lstrip().split()
                     atm[self.nvsites] = {
@@ -714,10 +547,7 @@ class atomgroup:
                         "y": float(9999.9999),
                         "z": float(9999.9999),
                     }
-                    # DEBUG
-                    # print "Found lone pair in RTF: %s %s %s %.3f\n" % (atm[self.nvsites]['vsite'], atm[self.nvsites]['at1'], atm[self.nvsites]['at2'], atm[self.nvsites]['dist'])
 
-                    # jal - as above
                     att = self.nvsites
                     nodd = {att: atm[self.nvsites]}
                     self.G.add_node(att)
@@ -755,7 +585,7 @@ class atomgroup:
                         if i is None or j is None:
                             raise ValueError("Malformed file in BOND or DOUB section")
 
-                        ## jal - ignore "bonds" to lone pairs
+                        # ignore "bonds" to lone pairs
                         if not is_lp(atm[i]["name"]) and not is_lp(atm[j]["name"]):
                             self.G.add_edge(i, j)
                             self.G[i][j]["order"] = (
@@ -804,7 +634,6 @@ class atomgroup:
         self.autogen_angl_dihe()
         self.coord = np.zeros((self.natoms, 3), dtype=float)
 
-    # -----------------------------------------------------------------------
     def autogen_angl_dihe(self):
         self.angles = []
         for atomi in range(0, self.natoms):
@@ -828,7 +657,6 @@ class atomgroup:
                             self.dihedrals.append(var)
         self.ndihedrals = len(self.dihedrals)
 
-    # -----------------------------------------------------------------------
     def get_nonplanar_dihedrals(self, angl_params: list[tuple[str, str, str, float]]):
         nonplanar_dihedrals: list[list[int]] = []
         cutoff = 179.9
@@ -857,7 +685,6 @@ class atomgroup:
 
         return nonplanar_dihedrals
 
-    # -----------------------------------------------------------------------
     def write_gmx_itp(
         self, filename: str, angl_params: list[tuple[str, str, str, float]]
     ):
@@ -895,7 +722,6 @@ class atomgroup:
                 ";	ai	  aj funct			  c0			c1			  c2			c3\n"
             )
             for i, j in self.G.edges():
-                # f.write("%5d %5d	 1\n" % (i+1,j+1) )
                 f.write(
                     "%5d %5d	 1 ;  %10s %10s\n"
                     % (i + 1, j + 1, self.G.nodes[i]["type"], self.G.nodes[j]["type"])
@@ -907,15 +733,13 @@ class atomgroup:
             )
             for var in self.dihedrals:
                 if (
-                    # len(nx.dijkstra_path(self.G, var[0], var[3])) == 4
                     nx.dijkstra_path_length(self.G, var[0], var[3]) == 3  # type: ignore : Networkx is missing some type hints
                 ):  # this is to remove 1-2 and 1-3 included in dihedrals of rings
                     pairs14.add_edge(var[0], var[3])
             for i, j in pairs14.edges():
                 f.write("%5d %5d	 1\n" % (i + 1, j + 1))
-                # f.write("%5d %5d	 1 ;  %10s %10s\n" % (i+1,j+1,self.G.nodes[i]['type'],self.G.nodes[j]['type']) )
-                ## jal - add LP pairs, same as parent atom
-                ## Use is_lp_host_atom() to test each index, then find associated vsite
+                # Add LP pairs, same as parent atom
+                # Use is_lp_host_atom() to test each index, then find associated vsite
                 if is_lp_host_atom(self, self.G.nodes[i]["name"]):
                     k = find_vsite(self, i)
                     f.write("%5d %5d	 1\n" % (k + 1, j + 1))
@@ -971,8 +795,8 @@ class atomgroup:
                         % (var[0] + 1, var[1] + 1, var[2] + 1, var[3] + 1)
                     )
                 f.write("\n")
-            ## jal - add vsite directive
-            ## we use 2fd construction, introduced in GROMACS-2020
+            # add vsite directive
+            # we use 2fd construction, introduced in GROMACS-2020
             if self.nvsites > 0:
                 func = 2
                 f.write("[ virtual_sites2 ]\n")
@@ -998,14 +822,14 @@ class atomgroup:
                     )
                 f.write("\n")
 
-            ## jal - add exclusions for vsite
+            ## add exclusions for vsite
             if self.nvsites > 0:
                 f.write("[ exclusions ]\n")
                 f.write(";	ai	  aj\n")
-                ## jal - explicitly add all 1-2, 1-3, and 1-4 exclusions
-                ## for the lone pair, which are the same as 1-2, 1-3, 1-4
-                ## exclusions for the host (bonds, angles, pairs)
-                # first, exclude any LP from its host
+                """ explicitly add all 1-2, 1-3, and 1-4 exclusions
+                for the lone pair, which are the same as 1-2, 1-3, 1-4
+                exclusions for the host (bonds, angles, pairs) 
+                first, exclude any LP from its host """
                 for i in range(0, self.natoms):
                     if is_lp_host_atom(self, self.G.nodes[i]["name"]):
                         # find the LP attached to this host, not necessarily consecutive
@@ -1041,12 +865,10 @@ class atomgroup:
                         f.write("%5d %5d\n" % (k + 1, i + 1))
                 f.write("\n")
 
-    # -----------------------------------------------------------------------
     def read_mol2_coor_only(self, filename: str):
         check_natoms = 0
         check_nbonds = 0
         with open(filename, "r") as f:
-            # atm = {}
             section = "NONE"
             for line in f:
                 secflag = False
@@ -1059,32 +881,22 @@ class atomgroup:
                     check_natoms = int(entry[0])
                     check_nbonds = int(entry[1])
                     if check_natoms != self.natoms:
-                        # jal - if there are lone pairs, these will not be in the mol2 file
+                        # if there are lone pairs, these will not be in the mol2 file
                         if self.nvsites == 0:
-                            print(
-                                "Error in atomgroup.py: read_mol2_coor_only: no. of atoms in mol2 (%d) and top (%d) are unequal"
-                                % (check_natoms, self.natoms)
+                            ValueError(
+                                f"Error in atomgroup.py: read_mol2_coor_only: no. of atoms in mol2 ({check_natoms}) and top ({self.natoms}) are unequal. Usually this means the specified residue name does not match between str and mol2 files"
                             )
-                            print(
-                                "Usually this means the specified residue name does not match between str and mol2 files"
-                            )
-                            # print check_natoms,self.natoms
-                            exit()
                         else:
-                            print("")
                             print(
-                                "NOTE 5: %d lone pairs found in topology that are not in the mol2 file. This is not a problem, just FYI!\n"
+                                "\nNOTE 5: %d lone pairs found in topology that are not in the mol2 file. This is not a problem, just FYI!\n"
                                 % (self.nvsites)
                             )
-                    # jal - if we have correctly ignored bonds to LP then there is no need
+                    # if we have correctly ignored bonds to LP then there is no need
                     # for any check here
                     if check_nbonds != self.nbonds:
-                        print(
-                            "Error in atomgroup.py: read_mol2_coor_only: no. of bonds in mol2 (%d) and top (%d) are unequal"
-                            % (check_nbonds, self.nbonds)
+                        raise ValueError(
+                            f"Error in atomgroup.py: read_mol2_coor_only: no. of bonds in mol2 ({check_nbonds}) and top ({self.nbonds}) are unequal"
                         )
-                        # print check_nbonds,self.nbonds
-                        exit()
 
                     section = "NONE"
 
@@ -1094,12 +906,12 @@ class atomgroup:
 
                 if (section == "ATOM") and (not secflag):
                     entry = line.lstrip().split()
-                    ## guard against blank lines
+                    # guard against blank lines
                     if len(entry) > 1:
-                        ## jal - if there are lone pairs, these are not in mol2
-                        ## and are not necessarily something we can just tack on at the
-                        ## end of the coordinate section. Here, check the atom to see if it is
-                        ## the first constructing atom, and if so, we put in a dummy LP entry.
+                        # if there are lone pairs, these are not in mol2
+                        # and are not necessarily something we can just tack on at the
+                        # end of the coordinate section. Here, check the atom to see if it is
+                        # the first constructing atom, and if so, we put in a dummy LP entry.
                         atomi = int(entry[0]) - 1
                         self.G.nodes[atomi]["x"] = float(entry[2])
                         self.G.nodes[atomi]["y"] = float(entry[3])
@@ -1107,8 +919,8 @@ class atomgroup:
                         self.coord[atomi][0] = float(entry[2])
                         self.coord[atomi][1] = float(entry[3])
                         self.coord[atomi][2] = float(entry[4])
-                        ## jal - if we have an atom that is the host for a LP, insert
-                        ## the LP into the list
+                        # if we have an atom that is the host for a LP, insert
+                        # the LP into the list
                         if is_lp_host_atom(self, self.G.nodes[atomi]["name"]):
                             atomj = find_vsite(self, atomi)
                             # insert dummy entry for LP
@@ -1126,21 +938,19 @@ class atomgroup:
                 if line.startswith("@<TRIPOS>BOND"):
                     section = "BOND"
 
-    # -----------------------------------------------------------------------
     def write_pdb(self, filename: str):
         with open(filename, "w") as f:
             for atomi in range(0, self.natoms):
                 if len(self.G.nodes[atomi]["name"]) > 4:
-                    print("error in atomgroup.write_pdb(): atom name > 4 characters")
-                    exit()
+                    ValueError(
+                        "error in atomgroup.write_pdb(): atom name > 4 characters"
+                    )
                 if len(self.name) > 4:
                     resn = self.name[:4]
                 else:
                     resn = self.name
-                ## jal - construct LP sites
+                # construct LP sites
                 if is_lp(self.G.nodes[atomi]["name"]):
-                    # DEBUG
-                    # print "Found LP in write_pdb: %s\n" % self.G.nodes[atomi]['name']
                     # find constructing atoms, get their coordinates and construction distance*10
                     atn1 = "dum"
                     atn2 = "dum"
@@ -1165,11 +975,9 @@ class atomgroup:
 
                     # in case of failure
                     if (at1 == 0) and (at2 == 0):
-                        print("Failed to match LP-constructing atoms in write_pdb!\n")
-                        exit()
-
-                    # DEBUG
-                    # print "Found LP in write_pdb: %d %s %s with dist: %.3f\n" % ((atomi+1,at1+1,at2+1,dist))
+                        ValueError(
+                            "Failed to match LP-constructing atoms in write_pdb!"
+                        )
 
                     # at1, at2, and dist only exist in vsite structure!
                     # TODO: Verify these are actually floats
@@ -1231,40 +1039,15 @@ if len(sys.argv) != 5:
     print("Usage: RESNAME drug.mol2 drug.str charmm36.ff")
     exit()
 
-# check for compatible NetworkX version
-# if float(nx.__version__) < 2.0:
-#     print("Your NetworkX version is: ", nx.__version__)
-#     print("This script requires a version in the 2.x series")
-#     print(
-#         "Your NetworkX package is incompatible with this conversion script and cannot be used."
-#     )
-#     exit()
-# else:
-#     if float(nx.__version__) > 2.3:
-#         print("This script has been tested with NetworkX 2.3, and 2.4 is buggy.")
-#         print("Please install version 2.3 for best performance:")
-#         print("pip uninstall networkx")
-#         print("pip install networkx==2.3")
-
-
-if sys.version_info < (3, 0):
-    print(
-        "You are using a Python version in the 2.x series. This script requires Python 3.0 or higher."
-    )
-    print(
-        "Please visit http://mackerell.umaryland.edu/charmm_ff.shtml#gromacs to get a script for Python 3.x"
-    )
-    exit()
-
 mol_name = sys.argv[1]
 mol2_name = sys.argv[2]
 rtp_name = sys.argv[3]
 ffdir = sys.argv[4]
 atomtypes_filename = ffdir + "/atomtypes.atp"
 
-print("NOTE 1: Code tested with Python 3.5.2 and 3.7.3. Your version:", sys.version)
+print("NOTE 1: Code tested with Python 3.12 Your version:", sys.version)
 print("")
-print("NOTE 2: Code tested with NetworkX 2.3. Your version:", nx.__version__)
+print("NOTE 2: Code tested with NetworkX 3.4.2. Your version:", nx.__version__)
 print("")
 print(
     "NOTE 3: Please be sure to use the same version of CGenFF in your simulations that was used during parameter generation:"
@@ -1284,7 +1067,6 @@ topfile = mol_name.lower() + ".top"
 
 atomtypes = read_gmx_atomtypes(atomtypes_filename)
 
-# TODO: This list type seems odd, might not be stable / correct.
 angl_params: list[tuple[str, str, str, float]] = []  # needed for detecting triple bonds
 filelist = get_filelist_from_gmx_forcefielditp(ffdir, "forcefield.itp")
 for filename in filelist:
